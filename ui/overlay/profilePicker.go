@@ -15,13 +15,19 @@ type ProfilePicker struct {
 	cursor   int
 	focused  bool
 	width    int
+	// label is the heading shown above the choices.
+	label string
+	// changeHint describes the keys that change the selection.
+	changeHint string
 }
 
 // NewProfilePicker creates a new profile picker with the given profiles.
 // The first profile is selected by default.
 func NewProfilePicker(profiles []config.Profile) *ProfilePicker {
 	return &ProfilePicker{
-		profiles: profiles,
+		profiles:   profiles,
+		label:      "Profile",
+		changeHint: "←/→ to change",
 	}
 }
 
@@ -57,6 +63,16 @@ func (pp *ProfilePicker) HandleKeyPress(msg tea.KeyMsg) bool {
 	return false
 }
 
+// Next selects the following profile, wrapping around to the first.
+func (pp *ProfilePicker) Next() {
+	pp.cursor = (pp.cursor + 1) % len(pp.profiles)
+}
+
+// Prev selects the preceding profile, wrapping around to the last.
+func (pp *ProfilePicker) Prev() {
+	pp.cursor = (pp.cursor - 1 + len(pp.profiles)) % len(pp.profiles)
+}
+
 // GetSelectedProfile returns the currently selected profile.
 func (pp *ProfilePicker) GetSelectedProfile() config.Profile {
 	if pp.cursor < 0 || pp.cursor >= len(pp.profiles) {
@@ -86,10 +102,10 @@ var (
 // Render renders the profile picker.
 func (pp *ProfilePicker) Render() string {
 	var s strings.Builder
-	s.WriteString(ppLabelStyle.Render("Profile"))
+	s.WriteString(ppLabelStyle.Render(pp.label))
 
 	if pp.HasMultiple() && pp.focused {
-		s.WriteString(ppDimStyle.Render("  ←/→ to change"))
+		s.WriteString(ppDimStyle.Render("  " + pp.changeHint))
 	}
 	s.WriteString("\n\n")
 

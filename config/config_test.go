@@ -2,6 +2,7 @@ package config
 
 import (
 	"claude-squad/log"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -301,5 +302,20 @@ func TestSaveConfig(t *testing.T) {
 		assert.Equal(t, testConfig.AutoYes, loadedConfig.AutoYes)
 		assert.Equal(t, testConfig.DaemonPollInterval, loadedConfig.DaemonPollInterval)
 		assert.Equal(t, testConfig.BranchPrefix, loadedConfig.BranchPrefix)
+	})
+}
+
+func TestRepoTemplatesConfig(t *testing.T) {
+	t.Run("parses templates and dir from json", func(t *testing.T) {
+		var cfg Config
+		data := `{"repo_templates":[{"name":"Rust","repo":"me/rust-tpl"}],"repo_templates_dir":"~/src"}`
+		require.NoError(t, json.Unmarshal([]byte(data), &cfg))
+		assert.Equal(t, []RepoTemplate{{Name: "Rust", Repo: "me/rust-tpl"}}, cfg.RepoTemplates)
+		assert.Equal(t, "~/src", cfg.GetRepoTemplatesDir())
+	})
+
+	t.Run("dir defaults when unset", func(t *testing.T) {
+		cfg := &Config{}
+		assert.Equal(t, DefaultRepoTemplatesDir, cfg.GetRepoTemplatesDir())
 	})
 }

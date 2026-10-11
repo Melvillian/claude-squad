@@ -56,6 +56,12 @@ type TextInputOverlay struct {
 	pathMode   bool
 	candidates []string // completion candidates from the last ambiguous Tab
 	errorMsg   string   // validation error to display, cleared on typing
+
+	// templateMode turns the overlay into a single-line prompt with a choice
+	// picker above it: Tab/Shift+Tab cycle the choice, Enter submits.
+	templateMode bool
+	hint         string // extra key hint appended to the single-line hint row
+	statusMsg    string // progress message to display, e.g. while a command runs
 }
 
 // NewTextInputOverlay creates a new text input overlay with the given title and initial value.
@@ -77,6 +83,23 @@ func NewPathInputOverlay(title string, initialValue string) *TextInputOverlay {
 		Title:    title,
 		numStops: 1, // textarea only; Enter submits directly
 		pathMode: true,
+	}
+}
+
+// NewTemplateInputOverlay creates a single-line text input overlay with a
+// picker of choices (e.g. repo templates) above it. Tab and Shift+Tab cycle
+// the choice, Enter submits, Esc cancels.
+func NewTemplateInputOverlay(title string, label string, choices []config.Profile) *TextInputOverlay {
+	pp := NewProfilePicker(choices)
+	pp.label = label
+	pp.changeHint = "tab to change"
+	pp.Focus()
+	return &TextInputOverlay{
+		textarea:      newTextarea(""),
+		Title:         title,
+		profilePicker: pp,
+		numStops:      1,
+		templateMode:  true,
 	}
 }
 
@@ -227,6 +250,30 @@ func (t *TextInputOverlay) HandleKeyPress(msg tea.KeyMsg) (bool, bool) {
 		}
 	}
 
+	if t.templateMode {
+		switch msg.Type {
+		case tea.KeyTab:
+			t.profilePicker.Next()
+			return false, false
+		case tea.KeyShiftTab:
+			t.profilePicker.Prev()
+			return false, false
+		case tea.KeyEsc:
+			t.Canceled = true
+			return true, false
+		case tea.KeyEnter:
+			t.Submitted = true
+			if t.OnSubmit != nil {
+				t.OnSubmit()
+			}
+			return true, false
+		default:
+			t.errorMsg = ""
+			t.textarea, _ = t.textarea.Update(msg)
+			return false, false
+		}
+	}
+
 	switch msg.Type {
 	case tea.KeyTab:
 		t.setFocusIndex((t.FocusIndex + 1) % t.numStops)
@@ -333,6 +380,18 @@ func (t *TextInputOverlay) SetError(msg string) {
 	t.errorMsg = msg
 }
 
+// SetHint sets an extra key hint shown after the default hints of a
+// single-line (path or template) overlay.
+func (t *TextInputOverlay) SetHint(hint string) {
+	t.hint = hint
+}
+
+// SetStatus sets a progress message to display below the input. An empty
+// string clears it.
+func (t *TextInputOverlay) SetStatus(msg string) {
+	t.statusMsg = msg
+}
+
 // ResetSubmitted clears the submitted flag so the overlay can stay open
 // after a submission fails validation.
 func (t *TextInputOverlay) ResetSubmitted() {
@@ -380,15 +439,25 @@ func (t *TextInputOverlay) Render() string {
 	content += tiTitleStyle.Render(t.Title) + "\n"
 	content += t.textarea.View() + "\n\n"
 
-	if t.pathMode {
+	if t.pathMode || t.templateMode {
 		if len(t.candidates) > 0 {
 			content += tiHintStyle.Render(strings.Join(t.candidates, "  ")) + "\n\n"
+		}
+		if t.statusMsg != "" {
+			content += tiHintStyle.Render(t.statusMsg) + "\n\n"
 		}
 		if t.errorMsg != "" {
 			content += tiErrorStyle.Render(t.errorMsg) + "\n\n"
 		}
 		content += divider + "\n\n"
-		content += tiHintStyle.Render("tab complete · enter confirm · esc cancel")
+		hint := "tab complete · enter confirm · esc cancel"
+		if t.templateMode {
+			hint = "tab template · enter create · esc cancel"
+		}
+		if t.hint != "" {
+			hint += " · " + t.hint
+		}
+		content += tiHintStyle.Render(hint)
 		return tiStyle.Render(content)
 	}
 

@@ -48,6 +48,31 @@ type Config struct {
 	// as their first message. One of "ask", "always" or "never". Empty means
 	// DefaultRemoteControl.
 	RemoteControl RemoteControlMode `json:"remote_control,omitempty"`
+	// RepoTemplates lists GitHub template repos that can be used to create a new
+	// private repo when choosing the directory for a new session. Empty disables
+	// the feature.
+	RepoTemplates []RepoTemplate `json:"repo_templates,omitempty"`
+	// RepoTemplatesDir is the parent directory new repos are cloned into.
+	// Empty means DefaultRepoTemplatesDir.
+	RepoTemplatesDir string `json:"repo_templates_dir,omitempty"`
+}
+
+// RepoTemplate is a named GitHub template repository ("owner/name").
+type RepoTemplate struct {
+	Name string `json:"name"`
+	Repo string `json:"repo"`
+}
+
+// DefaultRepoTemplatesDir is used when the config doesn't set repo_templates_dir.
+const DefaultRepoTemplatesDir = "~/code"
+
+// GetRepoTemplatesDir returns the configured parent directory for repos created
+// from templates (possibly with a leading "~"), or DefaultRepoTemplatesDir.
+func (c *Config) GetRepoTemplatesDir() string {
+	if c.RepoTemplatesDir == "" {
+		return DefaultRepoTemplatesDir
+	}
+	return c.RepoTemplatesDir
 }
 
 // RemoteControlMode controls whether new claude instances start with "/remote-control".
