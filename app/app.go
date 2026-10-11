@@ -40,6 +40,8 @@ const (
 	stateDefault state = iota
 	// stateNewDir is the state when the user is choosing the directory for a new instance.
 	stateNewDir
+	// stateNewRepo is the state when the user is creating a repo from a template for a new instance.
+	stateNewRepo
 	// stateNew is the state when the user is creating a new instance.
 	stateNew
 	// statePrompt is the state when the user is entering a prompt.
@@ -75,6 +77,11 @@ type home struct {
 
 	// promptAfterName tracks if we should enter prompt mode after naming
 	promptAfterName bool
+
+	// ghReady is true once the gh CLI was found to be installed and authenticated.
+	ghReady bool
+	// repoCreating is true while a repo is being created from a template.
+	repoCreating bool
 
 	// keySent is used to manage underlining menu items
 	keySent bool
@@ -188,7 +195,12 @@ func (m *home) updateHandleWindowSizeEvent(msg tea.WindowSizeMsg) {
 func (m *home) Init() tea.Cmd {
 	// Upon starting, we want to start the spinner. Whenever we get a spinner.TickMsg, we
 	// update the spinner, which sends a new spinner.TickMsg. I think this lasts forever lol.
+	var ghCheck tea.Cmd
+	if len(m.repoTemplates()) > 0 {
+		ghCheck = checkGitHubCLI(m.ctx)
+	}
 	return tea.Batch(
+		ghCheck,
 		m.spinner.Tick,
 		func() tea.Msg {
 			time.Sleep(100 * time.Millisecond)
@@ -202,6 +214,13 @@ func (m *home) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case hideErrMsg:
 		m.errBox.Clear()
+	case ghCheckDoneMsg:
+		m.ghReady = msg.ok
+		if m.state == stateNewDir && m.textInputOverlay != nil && m.repoTemplatesAvailable() {
+			m.textInputOverlay.SetHint(repoTemplateKey + " new repo from template")
+		}
+	case repoCreatedMsg:
+		return m.handleRepoCreated(msg)
 	case previewTickMsg:
 		cmd := m.instanceChanged()
 		return m, tea.Batch(
@@ -355,7 +374,7 @@ func (m *home) handleMenuHighlighting(msg tea.KeyMsg) (cmd tea.Cmd, returnEarly 
 		m.keySent = false
 		return nil, false
 	}
-	if m.state == statePrompt || m.state == stateNewDir || m.state == stateHelp || m.state == stateConfirm {
+	if m.state == statePrompt || m.state == stateNewDir || m.state == stateNewRepo || m.state == stateHelp || m.state == stateConfirm {
 		return nil, false
 	}
 	// If it's in the global keymap, we should try to highlight it.
@@ -396,6 +415,9 @@ func (m *home) handleKeyPress(msg tea.KeyMsg) (mod tea.Model, cmd tea.Cmd) {
 		if msg.String() == "ctrl+c" {
 			return m, m.cancelDirOverlay()
 		}
+		if msg.String() == repoTemplateKey && m.repoTemplatesAvailable() {
+			return m, m.openRepoTemplateOverlay()
+		}
 		shouldClose, _ := m.textInputOverlay.HandleKeyPress(msg)
 		if !shouldClose {
 			return m, nil
@@ -404,6 +426,10 @@ func (m *home) handleKeyPress(msg tea.KeyMsg) (mod tea.Model, cmd tea.Cmd) {
 			return m, m.cancelDirOverlay()
 		}
 		return m.handleDirSubmit(strings.TrimSpace(m.textInputOverlay.GetValue()))
+	}
+
+	if m.state == stateNewRepo {
+		return m.handleRepoTemplateKeyPress(msg)
 	}
 
 	if m.state == stateNew {
@@ -1112,7 +1138,7 @@ func (m *home) View() string {
 		m.errBox.String(),
 	)
 
-	if m.state == statePrompt || m.state == stateNewDir {
+	if m.state == statePrompt || m.state == stateNewDir || m.state == stateNewRepo {
 		if m.textInputOverlay == nil {
 			log.ErrorLog.Printf("text input overlay is nil")
 		}

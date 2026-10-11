@@ -39,6 +39,9 @@ func (m *home) newDirOverlay(promptAfterName bool) {
 	m.menu.SetState(ui.StateNewInstance)
 	m.promptAfterName = promptAfterName
 	m.textInputOverlay = overlay.NewPathInputOverlay("Repository directory (empty = current repo)", "")
+	if m.repoTemplatesAvailable() {
+		m.textInputOverlay.SetHint(repoTemplateKey + " new repo from template")
+	}
 }
 
 // cancelDirOverlay closes the directory overlay without creating an instance.

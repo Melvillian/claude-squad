@@ -1,11 +1,13 @@
 package overlay
 
 import (
+	"claude-squad/config"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/stretchr/testify/assert"
 )
 
 func keyRunes(s string) tea.KeyMsg {
@@ -96,4 +98,39 @@ func TestPathInputResetSubmittedAllowsRetry(t *testing.T) {
 	if !shouldClose || !o.IsSubmitted() {
 		t.Error("overlay should submit again after ResetSubmitted()")
 	}
+}
+
+func TestTemplateInputTabCyclesChoices(t *testing.T) {
+	o := NewTemplateInputOverlay("Repo name", "Template", []config.Profile{
+		{Name: "TypeScript", Program: "me/ts"},
+		{Name: "Rust", Program: "me/rust"},
+	})
+	assert.Equal(t, "me/ts", o.GetSelectedProgram())
+
+	o.HandleKeyPress(tea.KeyMsg{Type: tea.KeyTab})
+	assert.Equal(t, "me/rust", o.GetSelectedProgram())
+	o.HandleKeyPress(tea.KeyMsg{Type: tea.KeyTab})
+	assert.Equal(t, "me/ts", o.GetSelectedProgram(), "tab wraps around")
+	o.HandleKeyPress(tea.KeyMsg{Type: tea.KeyShiftTab})
+	assert.Equal(t, "me/rust", o.GetSelectedProgram())
+}
+
+func TestTemplateInputTypingAndEnterSubmits(t *testing.T) {
+	o := NewTemplateInputOverlay("Repo name", "Template", []config.Profile{{Name: "Rust", Program: "me/rust"}})
+	o.HandleKeyPress(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("my-repo")})
+	closed, _ := o.HandleKeyPress(tea.KeyMsg{Type: tea.KeyEnter})
+
+	assert.True(t, closed)
+	assert.True(t, o.IsSubmitted())
+	assert.Equal(t, "my-repo", o.GetValue())
+}
+
+func TestTemplateInputRendersStatusAndHint(t *testing.T) {
+	o := NewTemplateInputOverlay("Repo name", "Template", []config.Profile{{Name: "Rust", Program: "me/rust"}})
+	o.SetSize(80, 10)
+	o.SetStatus("Creating repo…")
+	out := o.Render()
+	assert.Contains(t, out, "Creating repo…")
+	assert.Contains(t, out, "tab template")
+	assert.Contains(t, out, "Template")
 }

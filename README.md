@@ -150,6 +150,22 @@ When you create a new `claude` instance, Claude Squad asks (y/n) whether to send
 | `always` | Always send `/remote-control` without asking     |
 | `never`  | Never send `/remote-control`                     |
 
+#### New repos from templates
+
+To create a new private GitHub repo for a session, list your template repos in the config file. When choosing the directory for a new session, press `ctrl+t`, pick a template with `tab`, and enter a repo name. Claude Squad runs `gh repo create <name> --template <repo> --private --clone` in `repo_templates_dir` (default `~/code`) and starts the session in the new clone.
+
+```json
+{
+  "repo_templates": [
+    { "name": "TypeScript", "repo": "you/typescript-template" },
+    { "name": "Rust", "repo": "you/rust-template" }
+  ],
+  "repo_templates_dir": "~/code"
+}
+```
+
+This requires the [GitHub CLI](https://cli.github.com/) to be installed and logged in (`gh auth login`); otherwise `ctrl+t` is not offered.
+
 ### FAQs
 
 #### Failed to start new session
