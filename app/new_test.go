@@ -48,38 +48,6 @@ func TestResolveTemplate(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestResolveRemoteControl(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		cfgMode config.RemoteControlMode
-		flag    string
-		program string
-		want    bool
-		wantErr bool
-	}{
-		{"flag always wins", config.RemoteControlNever, "always", "claude", true, false},
-		{"flag never wins", config.RemoteControlAlways, "never", "claude", false, false},
-		{"config always", config.RemoteControlAlways, "", "claude", true, false},
-		{"config never", config.RemoteControlNever, "", "claude", false, false},
-		{"config ask has nobody to ask", config.RemoteControlAsk, "", "claude", false, false},
-		{"unset config defaults to ask", "", "", "claude", false, false},
-		{"non-claude program never", config.RemoteControlAlways, "always", "aider", false, false},
-		{"bogus flag", config.RemoteControlAsk, "sometimes", "claude", false, true},
-		{"ask flag is not allowed", config.RemoteControlAsk, "ask", "claude", false, true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := &config.Config{RemoteControl: tc.cfgMode}
-			got, err := resolveRemoteControl(cfg, tc.flag, tc.program)
-			if tc.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tc.want, got)
-		})
-	}
-}
-
 func newTestNewStorage(t *testing.T) *session.Storage {
 	t.Helper()
 	storage, err := session.NewStorage(config.LoadState())
@@ -105,9 +73,6 @@ func TestNewInstanceFromOptionsValidation(t *testing.T) {
 	_, err = newInstanceFromOptions(ctx, cfg, storage, NewOptions{Path: t.TempDir(), Title: "ok"})
 	require.Error(t, err, "not a git repo")
 	assert.Contains(t, err.Error(), "not a git repository")
-
-	_, err = newInstanceFromOptions(ctx, cfg, storage, NewOptions{Path: repo, Title: "ok", RemoteControl: "bogus"})
-	require.Error(t, err, "bad remote control")
 
 	_, err = newInstanceFromOptions(ctx, cfg, storage, NewOptions{Path: repo, Title: "ok", Template: "Rust"})
 	require.Error(t, err, "template without repo name")
@@ -137,11 +102,10 @@ func TestNewInstanceFromOptionsDefaultsAndOverrides(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	repo := initTestRepo(t)
 	cfg := newTestConfig()
-	cfg.RemoteControl = config.RemoteControlAlways
 	storage := newTestNewStorage(t)
 	ctx := context.Background()
 
-	// Defaults: cwd as repo, config program, config remote control.
+	// Defaults: cwd as repo, config program.
 	wd, err := os.Getwd()
 	require.NoError(t, err)
 	require.NoError(t, os.Chdir(repo))
@@ -152,22 +116,19 @@ func TestNewInstanceFromOptionsDefaultsAndOverrides(t *testing.T) {
 	assert.Equal(t, "defaults", instance.Title)
 	assert.Equal(t, mustEvalSymlinks(t, repo), mustEvalSymlinks(t, instance.Path))
 	assert.Equal(t, "claude", instance.Program)
-	assert.True(t, instance.RemoteControl)
 	assert.Empty(t, instance.Prompt)
 	assert.False(t, instance.Started())
 
 	// Overrides.
 	instance, err = newInstanceFromOptions(ctx, cfg, storage, NewOptions{
-		Path:          repo,
-		Title:         "custom",
-		Prompt:        "do the thing",
-		Program:       "aider",
-		RemoteControl: "always",
+		Path:    repo,
+		Title:   "custom",
+		Prompt:  "do the thing",
+		Program: "aider",
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "aider", instance.Program)
 	assert.Equal(t, "do the thing", instance.Prompt)
-	assert.False(t, instance.RemoteControl, "aider never gets /remote-control")
 }
 
 func mustEvalSymlinks(t *testing.T, path string) string {

@@ -169,7 +169,7 @@ func TestTrustDialogIsAcceptedNotExited(t *testing.T) {
 	}
 }
 
-func TestSendStartupMessagesWaitsForReadyAndAcceptsTrust(t *testing.T) {
+func TestSendStartupPromptWaitsForReadyAndDismissesDialogs(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	orig := startupTiming
 	startupTiming = startupTimingSpec{poll: time.Millisecond, stableFor: 5 * time.Millisecond, timeout: time.Second}
@@ -190,12 +190,10 @@ func TestSendStartupMessagesWaitsForReadyAndAcceptsTrust(t *testing.T) {
 		switch {
 		case strings.Contains(string(typed), "hello\r"):
 			return "❯ hello\n⏺ hi there"
-		case strings.Contains(string(typed), remoteControlCommand+"\r\r"):
-			return ready // modal dismissed
-		case strings.Contains(string(typed), remoteControlCommand+"\r"):
-			return rcModal
+		case strings.Contains(string(typed), "\x1b[B\r\r"):
+			return ready // remote-control confirmation dismissed
 		case strings.Contains(string(typed), "\x1b[B\r"):
-			return ready // trust accepted
+			return rcModal // trust accepted
 		}
 		if i < len(frames) {
 			i++
@@ -206,12 +204,12 @@ func TestSendStartupMessagesWaitsForReadyAndAcceptsTrust(t *testing.T) {
 	instance, p := startedTestInstance(t, nextPane)
 	ptyPath = p
 
-	require.NoError(t, sendStartupMessages(instance, true, "hello"))
+	require.NoError(t, sendStartupPrompt(instance, "hello"))
 
 	written, err := os.ReadFile(ptyPath)
 	require.NoError(t, err)
-	assert.Equal(t, "\x1b[B\r"+remoteControlCommand+"\r"+"\r"+"hello\r", string(written),
-		"accept trust, send /remote-control, dismiss its dialog, send prompt")
+	assert.Equal(t, "\x1b[B\r"+"\r"+"hello\r", string(written),
+		"accept trust, dismiss the remote-control confirmation, send prompt")
 }
 
 func TestDismissStartupDialog(t *testing.T) {

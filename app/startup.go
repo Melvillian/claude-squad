@@ -25,10 +25,11 @@ var startupTiming = startupTimingSpec{
 	timeout:   60 * time.Second,
 }
 
-// remoteControlModalMarker is text from the confirmation claude shows after
-// remoteControlCommand ("This session is available in the Claude mobile app
-// ... Disconnect this session / Show QR code / Continue"). Anything typed
-// while it is up is dropped, and Enter selects Continue.
+// remoteControlModalMarker is text from the confirmation claude may show when
+// a session starts with remote control enabled in its settings ("This session
+// is available in the Claude mobile app ... Disconnect this session / Show QR
+// code / Continue"). Anything typed while it is up is dropped, and Enter
+// selects Continue.
 const remoteControlModalMarker = "Disconnect this session"
 
 // waitForProgramReady blocks until the instance's program has drawn a screen
