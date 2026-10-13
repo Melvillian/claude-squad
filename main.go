@@ -145,7 +145,7 @@ a second.
 
 Examples:
   cs new --title fix-login --prompt "Fix the login bug"
-  cs new --path ~/code/app --title docs --branch main --program codex
+  cs new --path ~/code/app --title docs --branch feature/docs --program codex
   cs new --template Rust --repo-name new-service --prompt "Set up CI"`,
 		// Runtime failures (bad path, duplicate title, gh errors) are reported
 		// by main; usage is only useful for flag errors.
@@ -193,7 +193,7 @@ func init() {
 	newCmd.Flags().StringVar(&newOpts.Prompt, "prompt", "",
 		"Prompt to send once the program has started")
 	newCmd.Flags().StringVar(&newOpts.Branch, "branch", "",
-		"Existing branch to start from (default: new branch from HEAD)")
+		"Existing branch to work on; must not be checked out elsewhere (default: new branch from HEAD)")
 	newCmd.Flags().StringVarP(&newOpts.Program, "program", "p", "",
 		"Program to run (default: from config)")
 	newCmd.Flags().StringVar(&newOpts.RemoteControl, "remote-control", "",
