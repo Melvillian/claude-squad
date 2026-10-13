@@ -434,6 +434,15 @@ func (i *Instance) Paused() bool {
 }
 
 // TmuxAlive returns true if the tmux session is alive. This is a sanity check before attaching.
+// TmuxSessionName returns the name of the instance's tmux session, or "" if
+// it has not started.
+func (i *Instance) TmuxSessionName() string {
+	if i.tmuxSession == nil {
+		return ""
+	}
+	return i.tmuxSession.Name()
+}
+
 func (i *Instance) TmuxAlive() bool {
 	return i.tmuxSession.DoesSessionExist()
 }

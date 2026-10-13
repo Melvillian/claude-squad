@@ -103,6 +103,22 @@ func (s *Storage) SaveInstances(instances []*Instance) error {
 	})
 }
 
+// TitleExists reports whether an instance with the given title is already
+// stored, without restoring any instance. Storage keys records by title, so a
+// new instance must not reuse one.
+func (s *Storage) TitleExists(title string) (bool, error) {
+	stored, err := unmarshalInstances(s.state.GetInstances())
+	if err != nil {
+		return false, err
+	}
+	for _, data := range stored {
+		if data.Title == title {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // LoadInstances loads the list of instances from disk
 func (s *Storage) LoadInstances() ([]*Instance, error) {
 	instancesData, err := unmarshalInstances(s.state.GetInstances())
@@ -119,6 +135,32 @@ func (s *Storage) LoadInstances() ([]*Instance, error) {
 		instances[i] = instance
 	}
 
+	return instances, nil
+}
+
+// LoadNewInstances re-reads the state from disk and restores the stored
+// instances whose titles known does not recognize. It lets a running TUI pick
+// up sessions created by other processes (another TUI, `cs new`).
+func (s *Storage) LoadNewInstances(known func(title string) bool) ([]*Instance, error) {
+	if err := s.state.Reload(); err != nil {
+		return nil, fmt.Errorf("failed to reload state: %w", err)
+	}
+	stored, err := unmarshalInstances(s.state.GetInstances())
+	if err != nil {
+		return nil, err
+	}
+
+	var instances []*Instance
+	for _, data := range stored {
+		if known(data.Title) {
+			continue
+		}
+		instance, err := FromInstanceData(data)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create instance %s: %w", data.Title, err)
+		}
+		instances = append(instances, instance)
+	}
 	return instances, nil
 }
 

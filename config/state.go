@@ -27,6 +27,9 @@ type InstanceStorage interface {
 	GetInstances() json.RawMessage
 	// DeleteAllInstances removes all stored instances
 	DeleteAllInstances() error
+	// Reload replaces the cached state with what is on disk, so changes made
+	// by other claude-squad processes become visible to GetInstances.
+	Reload() error
 }
 
 // AppState handles application-level state
@@ -84,6 +87,33 @@ func LoadState() *State {
 	}
 
 	return state
+}
+
+// StateFilePath returns the path of the state file.
+func StateFilePath() (string, error) {
+	configDir, err := GetConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get config directory: %w", err)
+	}
+	return filepath.Join(configDir, StateFileName), nil
+}
+
+// Reload re-reads the state file. A missing file means the default state.
+// No lock is needed: writes replace the file atomically.
+func (s *State) Reload() error {
+	statePath, err := StateFilePath()
+	if err != nil {
+		return err
+	}
+	disk, err := readState(statePath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+		disk = DefaultState()
+	}
+	*s = *disk
+	return nil
 }
 
 // readState reads and parses the state file at the given path.
