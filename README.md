@@ -60,6 +60,7 @@ Available Commands:
   completion  Generate the autocompletion script for the specified shell
   debug       Print debug information like config paths
   help        Help about any command
+  new         Create and start a new session without the TUI
   reset       Reset all stored instances
   version     Print the version number of claude-squad
 
@@ -139,6 +140,34 @@ Each profile has two fields:
 | `program` | Shell command used to launch the agent for that profile  |
 
 If no profiles are defined, Claude Squad uses `default_program` directly as the launch command (the default is `claude`).
+
+#### Scripting new sessions
+
+`cs new` creates and starts a session non-interactively, taking the wizard's answers as flags. It is meant for scripts and other tools. A running TUI picks the new session up within about a second; otherwise it is there the next time you launch `cs`.
+
+```bash
+# New branch from HEAD of the current repo, with an initial prompt
+cs new --title fix-login --prompt "Fix the login bug"
+
+# Another repo, an existing branch, a different program
+cs new --path ~/code/app --title docs --branch main --program codex
+
+# Create a private GitHub repo from a configured template and start there
+cs new --template Rust --repo-name new-service --prompt "Set up CI"
+```
+
+| Flag               | Meaning                                                                                          |
+|--------------------|--------------------------------------------------------------------------------------------------|
+| `--path`           | Repository directory (default: current directory)                                                |
+| `--title`          | Session title; must be unique (default: `--repo-name` when using a template)                     |
+| `--prompt`         | Sent to the program once it has started                                                          |
+| `--branch`         | Existing branch to start from (default: a new branch from HEAD)                                  |
+| `-p, --program`    | Program to run (default: from config)                                                            |
+| `--template`       | A `repo_templates` name or an `owner/repo`; creates the repo with `gh` (requires `--repo-name`)  |
+| `--repo-name`      | Name of the GitHub repo to create from `--template`                                              |
+| `--remote-control` | `always` or `never` (default: from config, where `ask` means `never`)                            |
+
+The command prints the branch, worktree path and `tmux attach` command on success, and exits non-zero on failure.
 
 #### Remote control
 

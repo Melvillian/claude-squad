@@ -133,3 +133,70 @@ func TestDeleteInstanceRemovesInstanceSavedByAnotherProcess(t *testing.T) {
 		t.Fatalf("expected no instances after delete, got %v", titles)
 	}
 }
+
+func TestTitleExists(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	storage := newTestStorage(t)
+	exists, err := storage.TitleExists("a")
+	if err != nil {
+		t.Fatalf("TitleExists: %v", err)
+	}
+	if exists {
+		t.Fatalf("expected %q not to exist in empty storage", "a")
+	}
+
+	if err := storage.SaveInstances([]*Instance{newPausedInstance(t, "a")}); err != nil {
+		t.Fatalf("failed to save: %v", err)
+	}
+
+	// A fresh Storage sees what the other process saved.
+	exists, err = newTestStorage(t).TitleExists("a")
+	if err != nil {
+		t.Fatalf("TitleExists: %v", err)
+	}
+	if !exists {
+		t.Fatalf("expected %q to exist after save", "a")
+	}
+	exists, err = newTestStorage(t).TitleExists("b")
+	if err != nil {
+		t.Fatalf("TitleExists: %v", err)
+	}
+	if exists {
+		t.Fatalf("expected %q not to exist", "b")
+	}
+}
+
+func TestLoadNewInstancesPicksUpOtherProcessesSaves(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	storage := newTestStorage(t)
+
+	known := map[string]bool{}
+	isKnown := func(title string) bool { return known[title] }
+
+	instances, err := storage.LoadNewInstances(isKnown)
+	if err != nil {
+		t.Fatalf("LoadNewInstances: %v", err)
+	}
+	if len(instances) != 0 {
+		t.Fatalf("expected no instances, got %d", len(instances))
+	}
+
+	// Another process saves "a" and "b"; this Storage's cached state is stale.
+	other := newTestStorage(t)
+	if err := other.SaveInstances([]*Instance{newPausedInstance(t, "a"), newPausedInstance(t, "b")}); err != nil {
+		t.Fatalf("failed to save: %v", err)
+	}
+	known["a"] = true
+
+	instances, err = storage.LoadNewInstances(isKnown)
+	if err != nil {
+		t.Fatalf("LoadNewInstances: %v", err)
+	}
+	if len(instances) != 1 || instances[0].Title != "b" {
+		t.Fatalf("expected only b, got %v", instances)
+	}
+	if !instances[0].Started() {
+		t.Fatalf("expected b to be restored")
+	}
+}

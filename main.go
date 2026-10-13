@@ -135,6 +135,29 @@ var (
 		},
 	}
 
+	newOpts = app.NewOptions{}
+	newCmd  = &cobra.Command{
+		Use:   "new",
+		Short: "Create and start a new session without the TUI",
+		Long: `Create and start a new session non-interactively, answering the new-session
+wizard's questions with flags. A running TUI picks the session up within about
+a second.
+
+Examples:
+  cs new --title fix-login --prompt "Fix the login bug"
+  cs new --path ~/code/app --title docs --branch main --program codex
+  cs new --template Rust --repo-name new-service --prompt "Set up CI"`,
+		// Runtime failures (bad path, duplicate title, gh errors) are reported
+		// by main; usage is only useful for flag errors.
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			log.Initialize(false)
+			defer log.Close()
+			return app.RunNew(context.Background(), newOpts)
+		},
+	}
+
 	versionCmd = &cobra.Command{
 		Use:   "version",
 		Short: "Print the version number",
@@ -159,6 +182,24 @@ func init() {
 		panic(err)
 	}
 
+	newCmd.Flags().StringVar(&newOpts.Path, "path", "",
+		"Repository directory (default: current directory)")
+	newCmd.Flags().StringVar(&newOpts.Template, "template", "",
+		"Create the repo from a template: a repo_templates name from the config or an owner/repo (requires --repo-name)")
+	newCmd.Flags().StringVar(&newOpts.RepoName, "repo-name", "",
+		"Name of the GitHub repo to create from --template")
+	newCmd.Flags().StringVar(&newOpts.Title, "title", "",
+		"Session title (default: --repo-name when using a template)")
+	newCmd.Flags().StringVar(&newOpts.Prompt, "prompt", "",
+		"Prompt to send once the program has started")
+	newCmd.Flags().StringVar(&newOpts.Branch, "branch", "",
+		"Existing branch to start from (default: new branch from HEAD)")
+	newCmd.Flags().StringVarP(&newOpts.Program, "program", "p", "",
+		"Program to run (default: from config)")
+	newCmd.Flags().StringVar(&newOpts.RemoteControl, "remote-control", "",
+		"Whether to start claude with /remote-control: 'always' or 'never' (default: from config; 'ask' means never)")
+
+	rootCmd.AddCommand(newCmd)
 	rootCmd.AddCommand(debugCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(resetCmd)
@@ -170,6 +211,7 @@ func main() {
 	rootCmd.Use = binName
 
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 }

@@ -113,6 +113,10 @@ type home struct {
 	// pendingConfirmCmd is returned to bubbletea once the confirmation overlay closes.
 	// Set by the overlay's callbacks when the outcome needs to run a tea.Cmd.
 	pendingConfirmCmd tea.Cmd
+
+	// stateFileSeen is the state file's stamp at the last refresh, so the file
+	// is only re-read when another process has written it.
+	stateFileSeen fileStamp
 }
 
 func newHome(ctx context.Context, program string, autoYes bool) *home {
@@ -159,6 +163,8 @@ func newHome(ctx context.Context, program string, autoYes bool) *home {
 			instance.AutoYes = true
 		}
 	}
+	// Everything on disk is now loaded; only later writes need a refresh.
+	h.stateFileSeen, _ = stateFileStamp()
 
 	return h
 }
@@ -207,6 +213,7 @@ func (m *home) Init() tea.Cmd {
 			return previewTickMsg{}
 		},
 		tickUpdateMetadataCmd(m.snapshotActiveInstances(), m.list.GetSelectedInstance()),
+		refreshTickCmd(),
 	)
 }
 
@@ -221,6 +228,8 @@ func (m *home) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case repoCreatedMsg:
 		return m.handleRepoCreated(msg)
+	case refreshTickMsg:
+		return m, tea.Batch(m.refreshInstances(), refreshTickCmd())
 	case previewTickMsg:
 		cmd := m.instanceChanged()
 		return m, tea.Batch(
@@ -968,28 +977,44 @@ func (m *home) withRemoteControlChoice(instance *session.Instance, start func() 
 // messages in the background: remoteControlCommand (if enabled) followed by
 // the initial prompt (if any). Returns nil when there is nothing to send.
 func sendStartupMessagesCmd(instance *session.Instance) tea.Cmd {
-	remoteControl, prompt := instance.RemoteControl, instance.Prompt
-	instance.RemoteControl, instance.Prompt = false, ""
+	remoteControl, prompt := takeStartupMessages(instance)
 	if !remoteControl && prompt == "" {
 		return nil
 	}
 
 	return func() tea.Msg {
-		if remoteControl {
-			if err := instance.SendPrompt(remoteControlCommand); err != nil {
-				return fmt.Errorf("failed to send %s: %w", remoteControlCommand, err)
-			}
-			if prompt != "" {
-				time.Sleep(remoteControlSettleDelay)
-			}
-		}
-		if prompt != "" {
-			if err := instance.SendPrompt(prompt); err != nil {
-				return fmt.Errorf("failed to send prompt: %w", err)
-			}
+		if err := sendStartupMessages(instance, remoteControl, prompt); err != nil {
+			return err
 		}
 		return nil
 	}
+}
+
+// takeStartupMessages returns and clears the instance's pending startup
+// messages so they are sent at most once.
+func takeStartupMessages(instance *session.Instance) (remoteControl bool, prompt string) {
+	remoteControl, prompt = instance.RemoteControl, instance.Prompt
+	instance.RemoteControl, instance.Prompt = false, ""
+	return remoteControl, prompt
+}
+
+// sendStartupMessages types remoteControlCommand (if remoteControl) and then
+// prompt (if non-empty) into a started instance.
+func sendStartupMessages(instance *session.Instance, remoteControl bool, prompt string) error {
+	if remoteControl {
+		if err := instance.SendPrompt(remoteControlCommand); err != nil {
+			return fmt.Errorf("failed to send %s: %w", remoteControlCommand, err)
+		}
+		if prompt != "" {
+			time.Sleep(remoteControlSettleDelay)
+		}
+	}
+	if prompt != "" {
+		if err := instance.SendPrompt(prompt); err != nil {
+			return fmt.Errorf("failed to send prompt: %w", err)
+		}
+	}
+	return nil
 }
 
 // startInstanceAndSave starts a freshly created instance and persists its

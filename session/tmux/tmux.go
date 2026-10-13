@@ -92,6 +92,12 @@ func newTmuxSession(name string, program string, ptyFactory PtyFactory, cmdExec 
 
 // Start creates and starts a new tmux session, then attaches to it. Program is the command to run in
 // the session (ex. claude). workdir is the git worktree directory.
+// Name returns the name of the tmux session (including TmuxPrefix), as used
+// with `tmux attach -t`.
+func (t *TmuxSession) Name() string {
+	return t.sanitizedName
+}
+
 func (t *TmuxSession) Start(workDir string) error {
 	// Check if the session already exists
 	if t.DoesSessionExist() {
