@@ -476,9 +476,7 @@ func (m *home) handleKeyPress(msg tea.KeyMsg) (mod tea.Model, cmd tea.Cmd) {
 			}
 
 			m.promptAfterName = false
-			return m, m.withRemoteControlChoice(instance, func() tea.Cmd {
-				return m.startNewInstance(instance, "")
-			})
+			return m, m.startNewInstance(instance, "")
 		case tea.KeyRunes:
 			if runewidth.StringWidth(instance.Title) >= 32 {
 				return m, m.handleError(fmt.Errorf("title cannot be longer than 32 characters"))
@@ -549,9 +547,7 @@ func (m *home) handleKeyPress(msg tea.KeyMsg) (mod tea.Model, cmd tea.Cmd) {
 					selected.Prompt = prompt
 					m.textInputOverlay = nil
 
-					return m, m.withRemoteControlChoice(selected, func() tea.Cmd {
-						return m.startNewInstance(selected, selectedBranch)
-					})
+					return m, m.startNewInstance(selected, selectedBranch)
 				}
 
 				// Regular flow: instance already running, just send prompt
@@ -928,103 +924,48 @@ func (m *home) startNewInstance(instance *session.Instance, selectedBranch strin
 	return tea.Batch(tea.WindowSize(), m.instanceChanged(), startCmd)
 }
 
-// remoteControlCommand is sent as the first message to new claude instances
-// that opt into remote control, making the session reachable from the Claude app.
-const remoteControlCommand = "/remote-control"
-
-// withRemoteControlChoice decides whether a new instance should start with
-// remoteControlCommand according to the configured RemoteControlMode, then
-// calls start. In "ask" mode the decision is deferred to a y/n overlay and
-// start runs once the user answers.
-func (m *home) withRemoteControlChoice(instance *session.Instance, start func() tea.Cmd) tea.Cmd {
-	if !instance.IsClaude() {
-		return start()
-	}
-
-	mode := config.DefaultRemoteControl
-	if m.appConfig != nil {
-		mode = m.appConfig.GetRemoteControl()
-	}
-
-	switch mode {
-	case config.RemoteControlAlways:
-		instance.RemoteControl = true
-		return start()
-	case config.RemoteControlNever:
-		return start()
-	}
-
-	m.state = stateConfirm
-	m.menu.SetState(ui.StateDefault)
-	m.confirmationOverlay = overlay.NewConfirmationOverlay(
-		fmt.Sprintf("Start this session with %s so you can continue it from your phone?", remoteControlCommand))
-	m.confirmationOverlay.SetWidth(50)
-	m.confirmationOverlay.OnConfirm = func() {
-		instance.RemoteControl = true
-		m.pendingConfirmCmd = start()
-	}
-	m.confirmationOverlay.OnCancel = func() {
-		m.pendingConfirmCmd = start()
-	}
-	return tea.WindowSize()
-}
-
-// sendStartupMessagesCmd returns a Cmd that sends the instance's startup
-// messages in the background: remoteControlCommand (if enabled) followed by
-// the initial prompt (if any). Returns nil when there is nothing to send.
+// sendStartupMessagesCmd returns a Cmd that sends the instance's initial
+// prompt in the background. Returns nil when there is nothing to send.
 func sendStartupMessagesCmd(instance *session.Instance) tea.Cmd {
-	remoteControl, prompt := takeStartupMessages(instance)
-	if !remoteControl && prompt == "" {
+	prompt := takeStartupPrompt(instance)
+	if prompt == "" {
 		return nil
 	}
 
 	return func() tea.Msg {
-		if err := sendStartupMessages(instance, remoteControl, prompt); err != nil {
+		if err := sendStartupPrompt(instance, prompt); err != nil {
 			return err
 		}
 		return nil
 	}
 }
 
-// takeStartupMessages returns and clears the instance's pending startup
-// messages so they are sent at most once.
-func takeStartupMessages(instance *session.Instance) (remoteControl bool, prompt string) {
-	remoteControl, prompt = instance.RemoteControl, instance.Prompt
-	instance.RemoteControl, instance.Prompt = false, ""
-	return remoteControl, prompt
+// takeStartupPrompt returns and clears the instance's pending startup prompt
+// so it is sent at most once.
+func takeStartupPrompt(instance *session.Instance) string {
+	prompt := instance.Prompt
+	instance.Prompt = ""
+	return prompt
 }
 
-// sendStartupMessages types remoteControlCommand (if remoteControl) and then
-// prompt (if non-empty) into a started instance. It first waits for the
-// program to finish starting up (accepting claude's workspace trust dialog if
-// it appears), since keys typed before then land in the wrong place: an Enter
-// buffered before the program reads input is treated as a pasted newline, and
-// keys typed into the trust dialog select its options.
-func sendStartupMessages(instance *session.Instance, remoteControl bool, prompt string) error {
-	if !remoteControl && prompt == "" {
+// sendStartupPrompt types prompt (if non-empty) into a started instance. It
+// first waits for the program to finish starting up (accepting claude's
+// workspace trust dialog if it appears), since keys typed before then land in
+// the wrong place: an Enter buffered before the program reads input is
+// treated as a pasted newline, and keys typed into the trust dialog select
+// its options.
+func sendStartupPrompt(instance *session.Instance, prompt string) error {
+	if prompt == "" {
 		return nil
 	}
 	screen, err := waitForProgramReady(instance)
 	if err != nil {
 		return err
 	}
-	if remoteControl {
-		if err := instance.SendPrompt(remoteControlCommand); err != nil {
-			return fmt.Errorf("failed to send %s: %w", remoteControlCommand, err)
-		}
-		// Let the command redraw the screen, then wait for its confirmation
-		// dialog to be dismissed and the screen to settle again.
-		time.Sleep(startupTiming.stableFor)
-		if screen, err = waitForProgramReady(instance); err != nil {
-			return err
-		}
+	if err := instance.SendPrompt(prompt); err != nil {
+		return fmt.Errorf("failed to send prompt: %w", err)
 	}
-	if prompt != "" {
-		if err := instance.SendPrompt(prompt); err != nil {
-			return fmt.Errorf("failed to send prompt: %w", err)
-		}
-		waitForScreenChange(instance, screen, startupTiming.stableFor*10)
-	}
+	waitForScreenChange(instance, screen, startupTiming.stableFor*10)
 	return nil
 }
 

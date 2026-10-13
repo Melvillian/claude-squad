@@ -32,9 +32,6 @@ type NewOptions struct {
 	Branch string
 	// Program overrides the configured program.
 	Program string
-	// RemoteControl is "always", "never" or empty to follow the config. The
-	// config's "ask" mode resolves to never since there is nobody to ask.
-	RemoteControl string
 }
 
 // RunNew creates and starts a session from opts without the TUI, so sessions
@@ -71,11 +68,6 @@ func newInstanceFromOptions(ctx context.Context, cfg *config.Config, storage *se
 	if program == "" {
 		program = cfg.GetProgram()
 	}
-	remoteControl, err := resolveRemoteControl(cfg, opts.RemoteControl, program)
-	if err != nil {
-		return nil, err
-	}
-
 	switch {
 	case opts.Template != "" && opts.RepoName == "":
 		return nil, fmt.Errorf("--template requires --repo-name")
@@ -137,18 +129,16 @@ func newInstanceFromOptions(ctx context.Context, cfg *config.Config, storage *se
 		instance.SetSelectedBranch(opts.Branch)
 	}
 	instance.Prompt = opts.Prompt
-	instance.RemoteControl = remoteControl
 	return instance, nil
 }
 
 // startInstanceHeadless starts the instance, persists it, and types its
-// startup messages, mirroring what the TUI does across instanceStartedMsg.
+// startup prompt, mirroring what the TUI does across instanceStartedMsg.
 func startInstanceHeadless(instance *session.Instance, storage *session.Storage) error {
 	if err := startInstanceAndSave(instance, storage); err != nil {
 		return err
 	}
-	remoteControl, prompt := takeStartupMessages(instance)
-	return sendStartupMessages(instance, remoteControl, prompt)
+	return sendStartupPrompt(instance, takeStartupPrompt(instance))
 }
 
 // resolveTemplate maps a configured template name to its "owner/repo". A value
@@ -169,25 +159,4 @@ func resolveTemplate(cfg *config.Config, template string) (string, error) {
 	}
 	return "", fmt.Errorf("unknown template %q: configured templates are %s; or pass an owner/repo",
 		template, strings.Join(names, ", "))
-}
-
-// resolveRemoteControl decides whether the new instance starts with
-// remoteControlCommand. flag ("always"/"never") overrides the config; the
-// config's "ask" mode means never, since nobody can answer non-interactively.
-// Non-claude programs never get it, as in the TUI.
-func resolveRemoteControl(cfg *config.Config, flag string, program string) (bool, error) {
-	mode := cfg.GetRemoteControl()
-	switch config.RemoteControlMode(flag) {
-	case "":
-	case config.RemoteControlAlways, config.RemoteControlNever:
-		mode = config.RemoteControlMode(flag)
-	default:
-		return false, fmt.Errorf("invalid --remote-control %q: use %q or %q", flag,
-			config.RemoteControlAlways, config.RemoteControlNever)
-	}
-	if mode != config.RemoteControlAlways {
-		return false, nil
-	}
-	probe := &session.Instance{Program: program}
-	return probe.IsClaude(), nil
 }

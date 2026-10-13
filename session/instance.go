@@ -52,9 +52,6 @@ type Instance struct {
 	AutoYes bool
 	// Prompt is the initial prompt to pass to the instance on startup
 	Prompt string
-	// RemoteControl is true if "/remote-control" should be sent as the first
-	// message on startup (before Prompt).
-	RemoteControl bool
 
 	// DiffStats stores the current git diff statistics
 	diffStats *git.DiffStats

@@ -165,19 +165,8 @@ cs new --template Rust --repo-name new-service --prompt "Set up CI"
 | `-p, --program`    | Program to run (default: from config)                                                            |
 | `--template`       | A `repo_templates` name or an `owner/repo`; creates the repo with `gh` (requires `--repo-name`)  |
 | `--repo-name`      | Name of the GitHub repo to create from `--template`                                              |
-| `--remote-control` | `always` or `never` (default: from config, where `ask` means `never`)                            |
 
-The command waits for the program to finish starting before typing anything, accepting claude's workspace trust dialog and the `/remote-control` confirmation on the way. It prints the branch, worktree path and `tmux attach` command on success, and exits non-zero on failure.
-
-#### Remote control
-
-When you create a new `claude` instance, Claude Squad asks (y/n) whether to send `/remote-control` as its first message, so you can continue the session from your phone. Set `remote_control` in your config file to skip the question:
-
-| Value    | Behavior                                         |
-|----------|--------------------------------------------------|
-| `ask`    | Ask each time (default)                          |
-| `always` | Always send `/remote-control` without asking     |
-| `never`  | Never send `/remote-control`                     |
+The command waits for the program to finish starting before typing anything, accepting claude's workspace trust dialog on the way. It prints the branch, worktree path and `tmux attach` command on success, and exits non-zero on failure.
 
 #### New repos from templates
 

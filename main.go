@@ -196,8 +196,6 @@ func init() {
 		"Existing branch to work on; must not be checked out elsewhere (default: new branch from HEAD)")
 	newCmd.Flags().StringVarP(&newOpts.Program, "program", "p", "",
 		"Program to run (default: from config)")
-	newCmd.Flags().StringVar(&newOpts.RemoteControl, "remote-control", "",
-		"Whether to start claude with /remote-control: 'always' or 'never' (default: from config; 'ask' means never)")
 
 	rootCmd.AddCommand(newCmd)
 	rootCmd.AddCommand(debugCmd)
