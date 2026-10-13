@@ -374,6 +374,14 @@ func (i *Instance) CheckAndHandleTrustPrompt() bool {
 	return i.tmuxSession.CheckAndHandleTrustPrompt()
 }
 
+// PressEnter sends an enter key press to the tmux session, e.g. to dismiss a dialog.
+func (i *Instance) PressEnter() error {
+	if !i.started || i.tmuxSession == nil {
+		return fmt.Errorf("instance not started")
+	}
+	return i.tmuxSession.TapEnter()
+}
+
 // TapEnter sends an enter key press to the tmux session if AutoYes is enabled.
 func (i *Instance) TapEnter() {
 	if !i.started || !i.AutoYes {

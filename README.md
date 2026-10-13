@@ -149,8 +149,8 @@ If no profiles are defined, Claude Squad uses `default_program` directly as the 
 # New branch from HEAD of the current repo, with an initial prompt
 cs new --title fix-login --prompt "Fix the login bug"
 
-# Another repo, an existing branch, a different program
-cs new --path ~/code/app --title docs --branch main --program codex
+# Another repo, continuing an existing branch, a different program
+cs new --path ~/code/app --title docs --branch feature/docs --program codex
 
 # Create a private GitHub repo from a configured template and start there
 cs new --template Rust --repo-name new-service --prompt "Set up CI"
@@ -161,13 +161,13 @@ cs new --template Rust --repo-name new-service --prompt "Set up CI"
 | `--path`           | Repository directory (default: current directory)                                                |
 | `--title`          | Session title; must be unique (default: `--repo-name` when using a template)                     |
 | `--prompt`         | Sent to the program once it has started                                                          |
-| `--branch`         | Existing branch to start from (default: a new branch from HEAD)                                  |
+| `--branch`         | Existing branch to work on; it must not be checked out elsewhere (default: a new branch from HEAD) |
 | `-p, --program`    | Program to run (default: from config)                                                            |
 | `--template`       | A `repo_templates` name or an `owner/repo`; creates the repo with `gh` (requires `--repo-name`)  |
 | `--repo-name`      | Name of the GitHub repo to create from `--template`                                              |
 | `--remote-control` | `always` or `never` (default: from config, where `ask` means `never`)                            |
 
-The command prints the branch, worktree path and `tmux attach` command on success, and exits non-zero on failure.
+The command waits for the program to finish starting before typing anything, accepting claude's workspace trust dialog and the `/remote-control` confirmation on the way. It prints the branch, worktree path and `tmux attach` command on success, and exits non-zero on failure.
 
 #### Remote control
 

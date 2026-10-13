@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
@@ -119,6 +120,9 @@ func (f recordingPtyFactory) Close() {}
 
 func TestSendStartupMessagesCmd(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
+	orig := startupTiming
+	startupTiming = startupTimingSpec{poll: time.Millisecond, stableFor: 5 * time.Millisecond, timeout: time.Second}
+	t.Cleanup(func() { startupTiming = orig })
 	repo := initTestRepo(t)
 	ptyPath := filepath.Join(t.TempDir(), "pty")
 

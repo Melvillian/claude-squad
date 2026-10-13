@@ -932,10 +932,6 @@ func (m *home) startNewInstance(instance *session.Instance, selectedBranch strin
 // that opt into remote control, making the session reachable from the Claude app.
 const remoteControlCommand = "/remote-control"
 
-// remoteControlSettleDelay gives claude time to process remoteControlCommand
-// before the user's initial prompt is typed in.
-const remoteControlSettleDelay = 2 * time.Second
-
 // withRemoteControlChoice decides whether a new instance should start with
 // remoteControlCommand according to the configured RemoteControlMode, then
 // calls start. In "ask" mode the decision is deferred to a y/n overlay and
@@ -999,20 +995,35 @@ func takeStartupMessages(instance *session.Instance) (remoteControl bool, prompt
 }
 
 // sendStartupMessages types remoteControlCommand (if remoteControl) and then
-// prompt (if non-empty) into a started instance.
+// prompt (if non-empty) into a started instance. It first waits for the
+// program to finish starting up (accepting claude's workspace trust dialog if
+// it appears), since keys typed before then land in the wrong place: an Enter
+// buffered before the program reads input is treated as a pasted newline, and
+// keys typed into the trust dialog select its options.
 func sendStartupMessages(instance *session.Instance, remoteControl bool, prompt string) error {
+	if !remoteControl && prompt == "" {
+		return nil
+	}
+	screen, err := waitForProgramReady(instance)
+	if err != nil {
+		return err
+	}
 	if remoteControl {
 		if err := instance.SendPrompt(remoteControlCommand); err != nil {
 			return fmt.Errorf("failed to send %s: %w", remoteControlCommand, err)
 		}
-		if prompt != "" {
-			time.Sleep(remoteControlSettleDelay)
+		// Let the command redraw the screen, then wait for its confirmation
+		// dialog to be dismissed and the screen to settle again.
+		time.Sleep(startupTiming.stableFor)
+		if screen, err = waitForProgramReady(instance); err != nil {
+			return err
 		}
 	}
 	if prompt != "" {
 		if err := instance.SendPrompt(prompt); err != nil {
 			return fmt.Errorf("failed to send prompt: %w", err)
 		}
+		waitForScreenChange(instance, screen, startupTiming.stableFor*10)
 	}
 	return nil
 }

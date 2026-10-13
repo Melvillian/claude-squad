@@ -171,6 +171,14 @@ func (t *TmuxSession) CheckAndHandleTrustPrompt() bool {
 	}
 
 	if strings.HasSuffix(t.program, ProgramClaude) {
+		// Current claude highlights "No, exit" by default, so Enter alone
+		// would quit; move down to "Yes, I trust this folder" first.
+		if strings.Contains(content, "Is this a project you created or one you trust?") {
+			if err := t.TapDownAndEnter(); err != nil {
+				log.ErrorLog.Printf("could not accept trust screen: %v", err)
+			}
+			return true
+		}
 		if strings.Contains(content, "Do you trust the files in this folder?") ||
 			strings.Contains(content, "new MCP server") {
 			if err := t.TapEnter(); err != nil {
@@ -229,6 +237,15 @@ func (t *TmuxSession) TapEnter() error {
 	_, err := t.ptmx.Write([]byte{0x0D})
 	if err != nil {
 		return fmt.Errorf("error sending enter keystroke to PTY: %w", err)
+	}
+	return nil
+}
+
+// TapDownAndEnter sends a down-arrow followed by an enter keystroke to the tmux pane.
+func (t *TmuxSession) TapDownAndEnter() error {
+	_, err := t.ptmx.Write([]byte("\x1b[B\r"))
+	if err != nil {
+		return fmt.Errorf("error sending down+enter keystrokes to PTY: %w", err)
 	}
 	return nil
 }
